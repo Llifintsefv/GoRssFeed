@@ -23,14 +23,24 @@ func NewRepository(db *sql.DB) RssRepository{
 }
 
 func (r *rssRepository) SaveNews(feed  *gofeed.Feed) error{
+	tx,err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction %w",err)
+	}
+	defer tx.Rollback()
+	stmt,err := tx.Prepare("INSERT INTO news (title,link,published,description) VALUES ($1,$2,$3,$4)")
+	if err != nil {
+		fmt.Errorf("Failed to prepare statiment %w",err)
+	}
+	defer stmt.Close()
 	for _, item := range feed.Items {
-		_,err := r.db.Exec("INSERT INTO news (title,link,published,description) VALUES ($1,$2,$3,$4)",
+		_,err := stmt.Exec("INSERT INTO news (title,link,published,description) VALUES ($1,$2,$3,$4)",
 		item.Title,item.Link,item.Published,item.Description)
 		if err != nil {
 		return fmt.Errorf("failed to save news: %w", err)
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (r *rssRepository) GetNewsById(id int) (models.News,error) {
