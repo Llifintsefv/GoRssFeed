@@ -22,24 +22,27 @@ func NewRepository(db *sql.DB) RssRepository{
 	return &rssRepository{db: db}
 }
 
-func (r *rssRepository) SaveNews(feed  *gofeed.Feed) error{
-	tx,err := r.db.Begin()
+func (r *rssRepository) SaveNews(feed *gofeed.Feed) error {
+	tx, err := r.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction %w",err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
-	stmt,err := tx.Prepare("INSERT INTO news (title,link,published,description) VALUES ($1,$2,$3,$4)")
+
+	stmt, err := tx.Prepare("INSERT INTO news (title,link,published,description) VALUES ($1,$2,$3,$4)")
 	if err != nil {
-		fmt.Errorf("Failed to prepare statiment %w",err)
+		_ = tx.Rollback() 
+		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
 	defer stmt.Close()
+
 	for _, item := range feed.Items {
-		_,err := stmt.Exec("INSERT INTO news (title,link,published,description) VALUES ($1,$2,$3,$4)",
-		item.Title,item.Link,item.Published,item.Description)
+		_, err := stmt.Exec(item.Title, item.Link, item.Published, item.Description)
 		if err != nil {
-		return fmt.Errorf("failed to save news: %w", err)
+			_ = tx.Rollback() 
+			return fmt.Errorf("failed to save news item: %w", err)
 		}
 	}
+
 	return tx.Commit()
 }
 
